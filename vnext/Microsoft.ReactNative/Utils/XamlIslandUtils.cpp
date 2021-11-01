@@ -47,7 +47,7 @@ void FixProofingMenuCrashForXamlIsland(xaml::Controls::Primitives::FlyoutBase co
               }
             });
           } else if (appBarButton.Flyout() == textBox.ProofingMenuFlyout()) {
-            if (!appBarButton.try_as<CustomAppBarButton>()) {
+            if (textBox.IsSpellCheckEnabled()) {
               // Replace the AppBarButton for the proofing menu with one that doesn't crash
               const auto customAppBarButton = winrt::make<CustomAppBarButton>();
               customAppBarButton.Label(appBarButton.Label());
@@ -55,7 +55,7 @@ void FixProofingMenuCrashForXamlIsland(xaml::Controls::Primitives::FlyoutBase co
               customAppBarButton.Flyout(appBarButton.Flyout());
               commands.RemoveAt(i);
               commands.InsertAt(i, customAppBarButton);
-            } else if (!textBox.IsSpellCheckEnabled()) {
+            } else {
               // Remove proofing menu option if spell-check is disabled
               commands.RemoveAt(i);
             }
@@ -64,6 +64,27 @@ void FixProofingMenuCrashForXamlIsland(xaml::Controls::Primitives::FlyoutBase co
             break;
           }
         }
+      }
+    }
+  });
+}
+
+void FixMenuThemeForXamlIsland(xaml::Controls::Primitives::FlyoutBase const &flyout) {
+  flyout.Opening([](winrt::IInspectable const &sender, auto &&) {
+    const auto &flyout = sender.as<winrt::Microsoft::UI::Xaml::Controls::TextCommandBarFlyout>();
+    auto theme = xaml::ElementTheme::Default;
+    if (const auto targetElement = flyout.Target().try_as<xaml::UIElement>()) {
+      if (const auto content = targetElement.XamlRoot().Content().try_as<xaml::FrameworkElement>()) {
+        theme = content.ActualTheme();
+      }
+    }
+
+    const auto commands = flyout.SecondaryCommands();
+    for (uint32_t i = 0; i < commands.Size(); ++i) {
+      if (const auto &appBarButton = commands.GetAt(i).try_as<xaml::Controls::AppBarButton>()) {
+        // Workaround Xaml Islands bug with dark theme and CommandBarFlyout:
+        // https://github.com/microsoft/microsoft-ui-xaml/issues/5320
+        appBarButton.RequestedTheme(theme);
       }
     }
   });
