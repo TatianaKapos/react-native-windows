@@ -34,6 +34,10 @@ WindowsModalHostComponentView::WindowsModalHostComponentView(
     : Super(compContext, tag, reactContext) {}
 
 WindowsModalHostComponentView::~WindowsModalHostComponentView() {
+  if (m_popUp) {
+    m_popUp = nullptr; // TODO: Is there a proper way to close this?
+  }
+  /*
   // dispatch onDismiss event
   auto emitter = std::static_pointer_cast<const facebook::react::ModalHostViewEventEmitter>(m_eventEmitter);
   facebook::react::ModalHostViewEventEmitter::OnDismiss onDismissArgs;
@@ -57,6 +61,7 @@ WindowsModalHostComponentView::~WindowsModalHostComponentView() {
     SendMessage(m_hwnd, WM_DESTROY, 0, 0);
     m_hwnd = nullptr;
   }
+` */
 }
 
 winrt::Microsoft::ReactNative::ComponentView WindowsModalHostComponentView::Create(
@@ -82,11 +87,11 @@ void WindowsModalHostComponentView::EnsureModalCreated() {
       winrt::Microsoft::ReactNative::implementation::ReactNativeHost::GetReactNativeHost(m_reactContext.Properties());
 
   // return if hwnd already exists
-  if (!host || m_hwnd) {
+  if (!host || m_hwnd || m_popUp) {
     return;
   }
 
-  RegisterWndClass();
+  // RegisterWndClass();
 
   HINSTANCE hInstance = GetModuleHandle(NULL);
   winrt::com_ptr<::IUnknown> spunk;
@@ -97,8 +102,8 @@ void WindowsModalHostComponentView::EnsureModalCreated() {
 
   m_parentHwnd = GetHwndForParenting();
 
+ /*
   auto windowsStyle = m_showTitleBar ? WS_OVERLAPPEDWINDOW : WS_POPUP;
-
   m_hwnd = CreateWindow(
       c_modalWindowClassName,
       L"React-Native Modal",
@@ -123,6 +128,7 @@ void WindowsModalHostComponentView::EnsureModalCreated() {
   // set the top-level windows as the new hwnd
   winrt::Microsoft::ReactNative::ReactCoreInjection::SetTopLevelWindowId(
       host.InstanceSettings().Properties(), reinterpret_cast<uint64_t>(m_hwnd));
+  */
 
   // get current compositor - handles the creation/manipulation of visual objects
   auto compositionContext = CompositionContext();
@@ -130,7 +136,35 @@ void WindowsModalHostComponentView::EnsureModalCreated() {
       winrt::Microsoft::ReactNative::Composition::Experimental::MicrosoftCompositionContextHelper::InnerCompositor(
           compositionContext);
 
+
+  // Test new IXP APIs
+  auto testbridge = winrt::Microsoft::UI::Content::DesktopChildSiteBridge::Create(compositor, winrt::Microsoft::UI::GetWindowIdFromWindow(m_parentHwnd));
+  m_popUp = testbridge.TryCreatePopupSiteBridge();
+
+  m_reactNativeIsland = winrt::Microsoft::ReactNative::ReactNativeIsland(compositor, m_reactContext.Handle(), *this);
+  auto contentIsland = m_reactNativeIsland.Island();
+  m_popUp.Connect(contentIsland);
+  m_popUp.OverrideScale(ScaleFactor(m_parentHwnd));
+
+  RECT rc;
+  GetClientRect(m_parentHwnd, &rc);
+  // Maximum size is set to size of parent hwnd
+  winrt::Microsoft::ReactNative::LayoutConstraints constraints;
+  constraints.LayoutDirection = winrt::Microsoft::ReactNative::LayoutDirection::Undefined;
+  constraints.MaximumSize = {(rc.right - rc.left) * ScaleFactor(m_hwnd), (rc.bottom - rc.top) / ScaleFactor(m_hwnd)};
+  constraints.MinimumSize = {MODAL_MIN_WIDTH * ScaleFactor(m_hwnd), MODAL_MIN_HEIGHT * ScaleFactor(m_hwnd)};
+  m_reactNativeIsland.Arrange(constraints, {0, 0});
+
+  winrt::Windows::Graphics::RectInt32 rect{};
+  // Initialize the rectangle
+  rect.X = 10; // X-coordinate
+  rect.Y = 20; // Y-coordinate
+  rect.Width = 500; // Width of the rectangle - Make it as large as possible to see if it shows up
+  rect.Height = 500; // Height of the rectangle
+  m_popUp.MoveAndResize(rect);
+
   // create a react native island - code taken from CompositionHwndHost
+  /*
   auto bridge = winrt::Microsoft::UI::Content::DesktopChildSiteBridge::Create(
       compositor, winrt::Microsoft::UI::GetWindowIdFromWindow(m_hwnd));
   m_reactNativeIsland = winrt::Microsoft::ReactNative::ReactNativeIsland(compositor, m_reactContext.Handle(), *this);
@@ -154,9 +188,23 @@ void WindowsModalHostComponentView::EnsureModalCreated() {
   bridge.ResizePolicy(winrt::Microsoft::UI::Content::ContentSizePolicy::ResizeContentToParentWindow);
 
   spunk.detach();
+  */
 }
 
 void WindowsModalHostComponentView::ShowOnUIThread() {
+  m_popUp.Enable();
+  m_popUp.Show();
+  m_popUp.MoveInZOrderAtTop();
+  auto test = m_popUp.WindowId();
+  auto test2 = m_popUp.IsVisible();
+  auto test3 = m_popUp.IsEnabled();
+
+  auto newhwnd = winrt::Microsoft::UI::GetWindowFromWindowId(m_popUp.WindowId());
+  ShowWindow(newhwnd, SW_NORMAL);
+  //SetWindowLongPtr(newhwnd, GWL_STYLE, WS_OVERLAPPEDWINDOW);
+
+  //auto test7 = m_popUp.IsVisible();
+  /*
   if (m_hwnd && !IsWindowVisible(m_hwnd)) {
     ShowWindow(m_hwnd, SW_NORMAL);
     BringWindowToTop(m_hwnd);
@@ -170,12 +218,17 @@ void WindowsModalHostComponentView::ShowOnUIThread() {
     facebook::react::ModalHostViewEventEmitter::OnShow onShowArgs;
     emitter->onShow(onShowArgs);
   }
+  */
 }
 
 void WindowsModalHostComponentView::HideOnUIThread() noexcept {
+
+  m_popUp.Hide();
+
+  /*
   if (m_hwnd) {
     SendMessage(m_hwnd, WM_CLOSE, 0, 0);
-  }
+   }
 
   // dispatch onDismiss event
   auto emitter = std::static_pointer_cast<const facebook::react::ModalHostViewEventEmitter>(m_eventEmitter);
@@ -193,6 +246,7 @@ void WindowsModalHostComponentView::HideOnUIThread() noexcept {
         host.InstanceSettings().Properties(), m_prevWindowID);
     m_prevWindowID = 0;
   }
+  */
 }
 
 // Windows Procedure - callback function used for handling all messages (generated by NTUser or manual calls to
@@ -292,11 +346,16 @@ void WindowsModalHostComponentView::updateLayoutMetrics(
     facebook::react::LayoutMetrics const &layoutMetrics,
     facebook::react::LayoutMetrics const &oldLayoutMetrics) noexcept {
   base_type::updateLayoutMetrics(layoutMetrics, oldLayoutMetrics);
+  /*
   if (m_hwnd) {
     EnsureModalCreated();
     AdjustWindowSize();
     ShowOnUIThread();
   }
+  */
+  EnsureModalCreated();
+  AdjustWindowSize();
+  ShowOnUIThread();
 }
 
 void WindowsModalHostComponentView::AdjustWindowSize() noexcept {
@@ -304,6 +363,31 @@ void WindowsModalHostComponentView::AdjustWindowSize() noexcept {
     return;
   }
 
+  // Modal's size is based on it's children, use the overflow to calculate the width/height
+  float xPos = (-m_layoutMetrics.overflowInset.right * (m_layoutMetrics.pointScaleFactor));
+  float yPos = (-m_layoutMetrics.overflowInset.bottom * (m_layoutMetrics.pointScaleFactor));
+
+  // set the layoutMetrics
+  RECT rect = {0, 0, (int)xPos, (int)yPos};
+  m_layoutMetrics.frame.size = {(float)rect.right - rect.left, (float)rect.bottom - rect.top};
+  m_layoutMetrics.overflowInset.right = 0;
+  m_layoutMetrics.overflowInset.bottom = 0;
+
+  // get Modal's position based on parent
+  RECT parentRC;
+  GetWindowRect(m_parentHwnd, &parentRC);
+  float xCor = (parentRC.left + parentRC.right - m_layoutMetrics.frame.size.width) / 2; // midpointx - width / 2
+  float yCor = (parentRC.top + parentRC.bottom - m_layoutMetrics.frame.size.height) / 2; // midpointy - height / 2
+
+  winrt::Windows::Graphics::RectInt32 rect2{(int)xCor, (int)yCor, (int)(rect.right - rect.left), (int)(rect.bottom - rect.top)};
+  m_popUp.MoveAndResize(rect2);
+
+
+  // Let RNWIsland know that Modal's size has changed
+  winrt::get_self<winrt::Microsoft::ReactNative::implementation::ReactNativeIsland>(m_reactNativeIsland)
+      ->NotifySizeChanged();
+
+  /*
   // Modal's size is based on it's children, use the overflow to calculate the width/height
   float xPos = (-m_layoutMetrics.overflowInset.right * (m_layoutMetrics.pointScaleFactor));
   float yPos = (-m_layoutMetrics.overflowInset.bottom * (m_layoutMetrics.pointScaleFactor));
@@ -332,6 +416,7 @@ void WindowsModalHostComponentView::AdjustWindowSize() noexcept {
   // Let RNWIsland know that Modal's size has changed
   winrt::get_self<winrt::Microsoft::ReactNative::implementation::ReactNativeIsland>(m_reactNativeIsland)
       ->NotifySizeChanged();
+  */
 };
 
 void WindowsModalHostComponentView::updateProps(
@@ -343,6 +428,8 @@ void WindowsModalHostComponentView::updateProps(
   newModalProps.visible ? m_isVisible = true : m_isVisible = false;
   if (!m_isVisible) {
     HideOnUIThread();
+  } else {
+    ShowOnUIThread();
   }
   base_type::updateProps(props, oldProps);
 }

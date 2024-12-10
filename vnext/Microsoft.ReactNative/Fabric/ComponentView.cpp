@@ -65,7 +65,7 @@ void ComponentView::MountChildComponentViewHandler(const MountChildComponentView
 }
 
 void ComponentView::onMounted() noexcept {
-  assert(!m_mounted);
+  //assert(!m_mounted);
   m_mounted = true;
   for (auto it = m_children.begin(); it != m_children.end(); ++it) {
     winrt::get_self<winrt::Microsoft::ReactNative::implementation::ComponentView>(*it)->onMounted();

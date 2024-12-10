@@ -150,5 +150,6 @@
     "**/*.{ts,tsx,js,jsx}"
   ],
   "prettier.configPath": ".prettierrc",
-  "prettier.ignorePath": ".prettierignore"
+  "prettier.ignorePath": ".prettierignore",
+  "cmake.sourceDirectory": "D:/react-native-windows/node_modules/bare-fs"
 }
