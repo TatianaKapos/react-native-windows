@@ -138,12 +138,12 @@ void WindowsModalHostComponentView::EnsureModalCreated() {
 
 
   // Test new IXP APIs
-  auto testbridge = winrt::Microsoft::UI::Content::DesktopChildSiteBridge::Create(compositor, winrt::Microsoft::UI::GetWindowIdFromWindow(m_parentHwnd));
-  m_popUp = testbridge.TryCreatePopupSiteBridge();
+  m_testbridge = winrt::Microsoft::UI::Content::DesktopChildSiteBridge::Create(compositor, winrt::Microsoft::UI::GetWindowIdFromWindow(m_parentHwnd));
+  m_popUp = m_testbridge.TryCreatePopupSiteBridge();
+  m_testbridge.Show();
 
   m_reactNativeIsland = winrt::Microsoft::ReactNative::ReactNativeIsland(compositor, m_reactContext.Handle(), *this);
-  auto contentIsland = m_reactNativeIsland.Island();
-  m_popUp.Connect(contentIsland);
+  m_popUp.Connect(m_reactNativeIsland.Island());
   m_popUp.OverrideScale(ScaleFactor(m_parentHwnd));
 
   RECT rc;
@@ -199,8 +199,7 @@ void WindowsModalHostComponentView::ShowOnUIThread() {
   auto test2 = m_popUp.IsVisible();
   auto test3 = m_popUp.IsEnabled();
 
-  auto newhwnd = winrt::Microsoft::UI::GetWindowFromWindowId(m_popUp.WindowId());
-  ShowWindow(newhwnd, SW_NORMAL);
+
   //SetWindowLongPtr(newhwnd, GWL_STYLE, WS_OVERLAPPEDWINDOW);
 
   //auto test7 = m_popUp.IsVisible();
@@ -334,6 +333,19 @@ void WindowsModalHostComponentView::MountChildComponentView(
     uint32_t index) noexcept {
   EnsureModalCreated();
   base_type::MountChildComponentView(childComponentView, index);
+
+  /* test code
+  auto compositionContext = CompositionContext();
+  auto compositor =
+      winrt::Microsoft::ReactNative::Composition::Experimental::MicrosoftCompositionContextHelper::InnerCompositor(
+          compositionContext);
+  auto spriteVisual = compositor.CreateSpriteVisual();
+  spriteVisual.Brush(compositor.CreateColorBrush(winrt::Windows::UI::Colors::Red()));
+  spriteVisual.Size({50, 50});
+  spriteVisual.Offset({20, 30, 0});
+  auto rootVisual = m_reactNativeIsland.RootVisual().try_as<winrt::Microsoft::UI::Composition::ContainerVisual>();
+  rootVisual.Children().InsertAtTop(spriteVisual);
+  */
 }
 
 void WindowsModalHostComponentView::UnmountChildComponentView(

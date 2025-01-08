@@ -67,6 +67,7 @@ struct WindowsModalHostComponentView
   bool m_showTitleBar{false};
   winrt::Microsoft::ReactNative::ReactNativeIsland m_reactNativeIsland;
   winrt::Microsoft::UI::Content::PopupWindowSiteBridge m_popUp{nullptr};
+  winrt::Microsoft::UI::Content::DesktopChildSiteBridge m_testbridge{nullptr};
 };
 
 } // namespace winrt::Microsoft::ReactNative::Composition::implementation
